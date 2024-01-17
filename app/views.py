@@ -143,27 +143,37 @@ class CustomerViewSet(ModelViewSet):
 @authentication_classes((TokenAuthentication,))     
 def task(request):
     try:
-        user=Customer.objects.get(username=request.user)
-        id=request.data.get("app")
-        image=request.data['image']
-        foldername='screenshots'
-        url=upload_to_s3(foldername,image)
-        app=App.objects.get(pk=id)
-        user.points_earned+=app.points
-        user.tasks_completed+=1
-        user.save()
-        data={
-            "user":user,
-            "app":app,
-            "screenshot":url
-        }
-        AppCustomer.objects.create(**data)
-        return Response({
-            "Message":"task Completed",
-            "screenshot":url
-        },status=200)
-        
+        user = Customer.objects.get(username=request.user)
+        app_id = request.data.get("app")
+        image = request.data['image']
+        foldername = 'screenshots'
+        app = App.objects.get(pk=app_id)
+
+        # Check if the combination of user and app already exists in AppCustomer
+        app_customer_exists = AppCustomer.objects.filter(user=user, app=app).exists()
+
+        if not app_customer_exists:
+            # Update user points and tasks
+            user.points_earned += app.points
+            user.tasks_completed += 1
+            user.save()
+
+            # Upload to S3 after the check
+            url = upload_to_s3(foldername, image)
+
+            # Create a new AppCustomer instance
+            AppCustomer.objects.create(user=user, app=app, screenshot=url)
+
+            return Response({
+                "Message": "Task Completed",
+                "screenshot": url
+            }, status=200)
+        else:
+            return Response({
+                "message": "User and App combination already exists"
+            }, status=400)
+
     except Exception as e:
         return Response({
-            "message":e.__str__()
-        },status=400)
+            "message": e.__str__()
+        }, status=400)
