@@ -40,6 +40,10 @@ INSTALLED_APPS = [
     "corsheaders",
     'rest_framework',
     'knox',
+    'drf_yasg',
+    'django_crontab',
+    # 'django_filters',
+    
 
     "app.apps.AppConfig",
 ]
@@ -58,6 +62,44 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOW_ALL_ORIGINS=True
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {name} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        },
+    },
+    "handlers": {
+        "file": {
+            "level": "INFO",
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR /"django.log",
+            'formatter': 'simple'
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose'
+        },
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["file","console"],   
+            "level": "INFO",    
+            "propagate": True,
+        },
+         "app": {
+            "handlers": ["file",'console'],
+            "level": "INFO",
+            "propagate": True,
+        },
+    },
+}
 
 ROOT_URLCONF = 'task.urls'
 
@@ -83,23 +125,36 @@ WSGI_APPLICATION = 'task.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
 DATABASES = {
-    'default': dj_database_url.parse(env('DATABASE_URL'), conn_max_age=600),
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
 }
+
+# DATABASES = {
+#     'default': dj_database_url.parse(env('DATABASE_URL'), conn_max_age=600),
+# }
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ('knox.auth.TokenAuthentication',),
-    # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    # 'PAGE_SIZE': 2
-
+#     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+#     'PAGE_SIZE': 2,
+#     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend']
 }
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Token': {
+            'type': 'apiKey',
+            'in': 'header',
+            'name': 'Authorization'
+        }
+    },
+}
+CRONJOBS = [
+    ('*/1 * * * *', f'app.cron.handle >>{BASE_DIR}/django.log 2>&1'),  # Run every 1 minutes
+]
+
 
 
 # Password validation

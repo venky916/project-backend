@@ -1,6 +1,7 @@
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.decorators import action,permission_classes,api_view,authentication_classes
+from rest_framework import status
 
 from .models import App,Customer,AppCustomer
 from .serializers import AppsSerializer,CustomerSerializer,UserRegistrationSerializer
@@ -10,16 +11,28 @@ from .utils import upload_to_s3
 from django.contrib.auth import login
 
 from rest_framework import permissions
+# from rest_framework.filters import SearchFilter,OrderingFilter
+# from django_filters.rest_framework import DjangoFilterBackend
 
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from knox.views import LoginView as KnoxLoginView
 from knox.auth import TokenAuthentication
 
-
+from drf_yasg.utils import swagger_auto_schema
+import logging
+logger = logging.getLogger( __name__ )
 
 class LoginView(KnoxLoginView):
     permission_classes = (permissions.AllowAny,)
-
+    
+    @swagger_auto_schema(
+        request_body=AuthTokenSerializer,
+        responses={status.HTTP_200_OK: """{
+            'expiry' , 
+            'token'
+            }
+            """}         
+        )
     def post(self, request, format=None):
         try:
             print(request.data)
@@ -35,11 +48,12 @@ class LoginView(KnoxLoginView):
                 )
             return response
         except Exception as e:
+            logger.exception('An error occurred')
             return Response({
                 "message":e.__str__()
             },status=401)
     
-    
+@swagger_auto_schema(method='post',request_body=UserRegistrationSerializer, responses={201: 'User registered successfully'})
 @api_view(http_method_names=['POST'])
 @permission_classes([permissions.AllowAny,])
 def register(request):
@@ -52,6 +66,7 @@ def register(request):
                     "message":"User Registered successsfully",
                 },status=201)
     except Exception as e:
+        logger.exception('An error occurred')
         return Response({
             "message":e.__str__()
         },status=400)
@@ -62,6 +77,10 @@ class AppViewSet(ModelViewSet):
     permission_classes=[permissions.IsAuthenticated,AppPermission]
     queryset=App.objects.all()
     serializer_class=AppsSerializer
+    # filter_backends = (SearchFilter,OrderingFilter)
+    # search_fields = ['app_name','points']
+    # filter_backends = [DjangoFilterBackend]
+    # filterset_fields = ['app_name', 'points']
 
     def perform_create(self, serializer):
         # Extract the uploaded image file
@@ -73,12 +92,8 @@ class AppViewSet(ModelViewSet):
             s3_url = upload_to_s3(foldername,image_file)
             # Save the object with the S3 URL
             serializer.save(app_image=s3_url)
+        serializer.save()
             
-    def create(self, request, *args, **kwargs):
-        print(request.data)
-        return super().create(request, *args, **kwargs)
-    
-
 class CustomerViewSet(ModelViewSet):
     authentication_classes=[TokenAuthentication,]
     permission_classes=[permissions.IsAuthenticated,]
@@ -137,10 +152,10 @@ class CustomerViewSet(ModelViewSet):
             "username": user.username
         }, status=200)
         
-        
+
 @api_view(http_method_names=['POST'])
 @permission_classes((permissions.IsAuthenticated,))
-@authentication_classes((TokenAuthentication,))     
+@authentication_classes((TokenAuthentication,))   
 def task(request):
     try:
         user = Customer.objects.get(username=request.user)
@@ -174,6 +189,8 @@ def task(request):
             }, status=400)
 
     except Exception as e:
+        logger.exception('An error occurred')
         return Response({
             "message": e.__str__()
         }, status=400)
+
